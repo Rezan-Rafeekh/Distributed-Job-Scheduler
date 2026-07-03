@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Dark-mode-first, high-contrast theme (Linear/Vercel/Grafana-esque): a
+ * graphite/near-black base with a single vivid indigo accent used for
+ * emphasis and glow. Both modes are first-class -- every token below has a
+ * light AND dark definition, switched purely via the `[data-theme="dark"]`
+ * attribute on <html> (set by lib/theme.ts, before first paint, to avoid a
+ * flash of the wrong theme). Nothing here relies on Tailwind's `dark:`
+ * variant; every component already reads these as plain utility classes
+ * (bg-surface, text-text-primary, bg-cherry-100, ...) so the whole app
+ * re-themes with zero changes to component markup.
+ *
+ * Scale names (beige/cherry/ink) are historical from an earlier warm
+ * palette; beige is now a cool graphite neutral scale and cherry is the
+ * danger/accent-adjacent red scale. `ink` is intentionally NOT theme-reactive
+ * -- it backs the always-dark code/log panels (bg-ink-900 + text-beige-100),
+ * which should look like a terminal regardless of the surrounding app theme.
+ */
+
+:root {
+  --color-bg: #F5F6F8;
+  --color-surface: #FFFFFF;
+  --color-surface-raised: #FFFFFF;
+  --color-border: #E2E4E9;
+  --color-text-primary: #14151A;
+  --color-text-secondary: #6B7080;
+
+  --color-primary: #5B4FE0;
+  --color-primary-hover: #4A3FC7;
+  --color-primary-rgb: 91 79 224;
+
+  --color-danger: #C4262D;
+  --color-success: #1F9D55;
+  --color-warning: #B8781E;
+
+  --color-success-bg: #E3F8EC;
+  --color-success-text: #157347;
+  --color-warning-bg: #FDF1DC;
+  --color-warning-text: #92600F;
+
+  --color-beige-50: #F7F8FA;
+  --color-beige-100: #EEF0F3;
+  --color-beige-200: #E2E4E9;
+  --color-beige-300: #CBCED6;
+  --color-beige-400: #9EA2AD;
+  --color-beige-500: #7B7F8C;
+  --color-beige-600: #5F6371;
+  --color-beige-700: #494D59;
+  --color-beige-800: #363944;
+  --color-beige-900: #24262E;
+
+  --color-cherry-50: #FDF1F1;
+  --color-cherry-100: #FBDCDD;
+  --color-cherry-200: #F6B8BA;
+  --color-cherry-300: #ED8B8F;
+  --color-cherry-400: #DC5459;
+  --color-cherry-500: #C4262D;
+  --color-cherry-600: #A31E24;
+  --color-cherry-700: #82171C;
+  --color-cherry-800: #611114;
+  --color-cherry-900: #400B0D;
+  --color-cherry-rgb: 196 38 45;
+}
+
+[data-theme="dark"] {
+  --color-bg: #0A0A0C;
+  --color-surface: #111114;
+  --color-surface-raised: #18181C;
+  --color-border: #26262B;
+  --color-text-primary: #F3F4F6;
+  --color-text-secondary: #9A9CA5;
+
+  --color-primary: #7C6CFF;
+  --color-primary-hover: #9384FF;
+  --color-primary-rgb: 124 108 255;
+
+  --color-danger: #FF6369;
+  --color-success: #3DD673;
+  --color-warning: #FFB224;
+
+  --color-success-bg: #113321;
+  --color-success-text: #4ADE80;
+  --color-warning-bg: #3A2A0A;
+  --color-warning-text: #FFC24D;
+
+  --color-beige-50: #1C1D22;
+  --color-beige-100: #232429;
+  --color-beige-200: #2C2E35;
+  --color-beige-300: #3A3C45;
+  --color-beige-400: #555863;
+  --color-beige-500: #767986;
+  --color-beige-600: #9A9DA8;
+  --color-beige-700: #BFC1C9;
+  --color-beige-800: #DDDFE3;
+  --color-beige-900: #F3F4F6;
+
+  --color-cherry-50: #2A1416;
+  --color-cherry-100: #3A1B1E;
+  --color-cherry-200: #5C262A;
+  --color-cherry-300: #7D323A;
+  --color-cherry-400: #B23B41;
+  --color-cherry-500: #E5484D;
+  --color-cherry-600: #FF6369;
+  --color-cherry-700: #FF9299;
+  --color-cherry-800: #FFC2C5;
+  --color-cherry-900: #FFEBEC;
+  --color-cherry-rgb: 229 72 77;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+::selection {
+  background-color: theme("colors.cherry.200");
+}
+
+/* Slim scrollbar so long log/job lists don't clash with the theme. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: theme("colors.beige.400");
+  border-radius: 999px;
+  border: 2px solid var(--color-bg);
+}
+
+/* Shimmer skeleton fill — a moving highlight band, not a flat pulse. */
+.skeleton-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    theme("colors.beige.200") 30%,
+    theme("colors.beige.100") 45%,
+    theme("colors.beige.50") 50%,
+    theme("colors.beige.100") 55%,
+    theme("colors.beige.200") 70%
+  );
+  background-size: 200% 100%;
+}
+
+/* Data-changed flash: applied via a data attribute toggled for ~1s when a row's
+   status updates live over WebSocket, so a change is visibly noticed rather
+   than silently eventually-consistent. */
+[data-flash="true"] {
+  animation: flash-highlight 900ms ease-out;
+}

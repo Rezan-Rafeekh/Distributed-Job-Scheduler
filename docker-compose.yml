@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: codity-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: codity
+      POSTGRES_PASSWORD: codity
+      POSTGRES_DB: codity
+    ports:
+      - "5432:5432"
+    volumes:
+      - codity_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U codity -d codity"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  codity_pg_data:
