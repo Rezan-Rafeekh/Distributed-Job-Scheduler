@@ -15,6 +15,8 @@ erDiagram
     JOB }o--o| SCHEDULED_JOB : "materialized from"
     JOB ||--o{ JOB_EXECUTION : "attempted via"
     JOB ||--o| DEAD_LETTER_ENTRY : "may have"
+    JOB ||--o{ JOB_DEPENDENCY : "depends on (as jobId)"
+    JOB ||--o{ JOB_DEPENDENCY : "blocks (as dependsOnJobId)"
     JOB_EXECUTION ||--o{ JOB_LOG : logs
     WORKER ||--o{ WORKER_HEARTBEAT : sends
     USER ||--o{ DEAD_LETTER_ENTRY : resolves
@@ -92,6 +94,11 @@ erDiagram
         enum level "DEBUG|INFO|WARN|ERROR"
         string message
     }
+    JOB_DEPENDENCY {
+        string id PK
+        string jobId FK "the job that must wait"
+        string dependsOnJobId FK "must reach COMPLETED first"
+    }
     SCHEDULED_JOB {
         string id PK
         string queueId FK
@@ -119,6 +126,8 @@ erDiagram
         string reason
         enum resolvedStatus "PENDING|REQUEUED|DISCARDED"
         string resolvedByUserId FK
+        json aiSummary "cached AI failure analysis, nullable"
+        datetime aiSummaryGeneratedAt
     }
 ```
 
@@ -143,10 +152,25 @@ erDiagram
   instead when a worker is cleaned up.
 - **Cascades**: `Organization → Project → Queue → Job → JobExecution → JobLog`
   all cascade on delete (deleting an org legitimately removes its whole data
-  tree). `OrganizationMember` cascades on both `Organization` and `User` sides
-  (deletes only the membership row, never the other party's data). Actor
-  references like `DeadLetterEntry.resolvedByUserId` use `SET NULL` so audit
-  history survives user deletion.
+  tree). `JobDependency` cascades on both `Job` sides (`jobId` and
+  `dependsOnJobId`) — deleting either job in a dependency pair removes the
+  edge, never the other job. `OrganizationMember` cascades on both
+  `Organization` and `User` sides (deletes only the membership row, never the
+  other party's data). Actor references like `DeadLetterEntry.resolvedByUserId`
+  use `SET NULL` so audit history survives user deletion.
+- **`JobDependency` (bonus: workflow dependencies)** is a plain edge table —
+  one row means "`jobId` cannot be claimed until `dependsOnJobId` reaches
+  `COMPLETED`." It's enforced entirely by extending the existing
+  `SCHEDULED`→`QUEUED` promotion gate (`promoteScheduledJobs.ts`), not by
+  touching the atomic claim query; see design-decisions.md for why that's the
+  sound place to enforce it. Indexed on both `jobId` and `dependsOnJobId`
+  since both lookup directions ("my dependencies" and "who depends on me")
+  are queried by the API and the reconciler's cascade-cancel sweep.
+- **`DeadLetterEntry.aiSummary` (bonus: AI-generated failure summaries)** is
+  cached JSON, nullable until a summary is generated. It's populated on
+  demand (`POST /dlq/:jobId/ai-summary`), not eagerly on every dead-letter
+  event, since the Claude API call is comparatively slow/costly and most
+  dead-lettered jobs are resolved by a human without ever asking for one.
 
 ## Indexing strategy
 
@@ -158,5 +182,6 @@ erDiagram
 | `(projectId, priority)` | `Queue` | Worker poll loop's priority-tiered queue scan |
 | `(isActive, nextRunAt)` | `ScheduledJob` | Cron materializer's due-template scan |
 | `(status, lastHeartbeatAt)` | `Worker` | Dead-worker detection sweep |
+| `(jobId)`, `(dependsOnJobId)` | `JobDependency` | Both dependency-lookup directions |
 | `(workerId, timestamp DESC)` | `WorkerHeartbeat` | Per-worker heartbeat history/sparkline |
 | `(jobExecutionId, timestamp)` | `JobLog` | Ordered log retrieval for a single execution |

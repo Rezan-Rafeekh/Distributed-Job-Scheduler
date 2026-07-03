@@ -232,18 +232,102 @@ operational infrastructure rather than per-tenant data — the alternative
 moment) doesn't map cleanly onto how a worker process actually operates,
 since a single worker polls across all unpaused queues it can see.
 
+## Workflow dependencies (bonus feature)
+
+**Enforced by extending the existing `SCHEDULED`→`QUEUED` promotion gate,
+`claimJobs.ts` untouched.** A job created with `dependsOnJobIds` starts at
+`status='SCHEDULED'` regardless of its nominal type.
+`promoteScheduledJobs.ts`'s `UPDATE ... WHERE status='SCHEDULED' AND
+run_at<=now()` gains `AND NOT EXISTS (SELECT 1 FROM job_dependencies jd JOIN
+jobs dep ON dep.id = jd.depends_on_job_id WHERE jd.job_id = jobs.id AND
+dep.status <> 'COMPLETED')`. This was validated specifically against a
+concern: could a job be promoted, then have a dependency "un-complete" out
+from under it, letting it slip through the gate incorrectly? No —
+`COMPLETED` is a genuinely terminal state in `stateMachine.ts` (no outgoing
+transitions), so the `NOT EXISTS` check can never flip from satisfied back to
+unsatisfied once true. Retries re-entering `SCHEDULED` need no special
+handling either; the gate just re-evaluates on every tick regardless of *why*
+a row is `SCHEDULED`.
+
+**Permanently-failed dependency handling is a fourth reconciler
+responsibility, not a special case in the claim path.** If a job's dependency
+is dead-lettered or cancelled, it will never reach `COMPLETED`, so the
+dependent would otherwise sit `SCHEDULED` forever with no path forward.
+`Reconciler.tick()` runs `cascadeCancelBlockedDependents()` alongside cron
+materialization and dead-worker detection: a single idempotent `UPDATE jobs
+SET status='CANCELLED' WHERE status='SCHEDULED' AND EXISTS (dependency in
+DEAD_LETTER or CANCELLED)`. `SCHEDULED → CANCELLED` is already a legal
+transition, so no new state was needed.
+
+**Documented scope boundary: no cascade-requeue.** If a dead-lettered
+dependency is later manually requeued and goes on to succeed, the
+already-cancelled dependent is *not* resurrected — there is cascade-cancel
+but deliberately no cascade-requeue. A human who wants the dependent to run
+after all must recreate it. Building bidirectional resurrection logic for a
+rare manual-intervention edge case wasn't worth the added state-machine
+complexity relative to how often it would actually matter.
+
+## AI-generated failure summaries (bonus feature)
+
+**Single Claude API call per summary, not an agent.** Classifying a failure
+and suggesting a fix from a fixed set of inputs (job payload, error, stack
+trace, recent logs) is a one-shot classification/summarization task with no
+need for tool use or multi-step reasoning, so `dlqService.generateFailureSummary`
+makes exactly one `client.messages.create()` call constrained to a JSON
+schema (`summary`/`likelyCause`/`suggestedFix`/`severity`) rather than
+standing up an agentic loop that would add latency and cost for no
+behavioral gain.
+
+**Cached on `DeadLetterEntry.aiSummary`, not regenerated on every view.**
+Once generated, a summary is durable until a caller explicitly passes
+`regenerate: true`. Most dead-lettered jobs in this system are either
+resolved by a human without ever requesting an analysis, or — as the seeded
+demo data shows — synthetic test failures where the "analysis" is stable
+and repeat calls would just burn API cost for an identical answer.
+
+**503s with a clear message if `ANTHROPIC_API_KEY` is unset, rather than
+crashing or silently no-op-ing.** `apps/api/src/lib/anthropic.ts` throws a
+typed `AiNotConfiguredError` the route maps to a 503, so a reviewer running
+this project without the key configured sees an honest "not configured"
+state on that one feature instead of an unhandled exception or a dead
+button — the rest of the platform is entirely unaffected either way.
+
 ## Frontend
 
-**Beige (`#F8F3EA` background family) + cherry red (`#C81E3A`) as the two
-brand colors**, chosen per product direction; supporting neutral/status
-colors were picked and *validated* (not eyeballed) using the dataviz skill's
-palette validator — the chart's "Completed" green (`#1F9D55`) was swapped
-from an initial too-desaturated `#3F7A52` after the validator flagged it
-below the chroma floor.
+**Dark-mode-first, high-contrast redesign with true light/dark parity, not a
+single fixed palette.** The dashboard's color system is built entirely on
+CSS custom properties (`--color-bg`, `--color-surface`, `--color-primary`,
+full `beige`/`cherry` scales, ...), each with an independently-tuned light
+*and* dark value, switched via a single `data-theme` attribute on `<html>`.
+Because every component already reads these as plain Tailwind utility
+classes (`bg-surface`, `text-cherry-800`, ...) rather than hardcoded hex or
+Tailwind's `dark:` variant, the whole app re-themes with zero changes to
+component markup — only `tailwind.config.ts` and `theme.css` needed to
+change. The accent shifted from the original cherry-red brand color to a
+vivid indigo (`#5B4FE0` light / `#7C6CFF` dark); cherry itself stayed the
+danger/error scale, re-tuned per mode for contrast against a near-black
+surface. An inline script in `index.html` reads `localStorage` (falling back
+to `prefers-color-scheme`) and sets `data-theme` before first paint, so there
+is no flash of the wrong theme on load. A theme toggle lives in the sidebar
+and mobile header.
 
-**Recharts for the metrics chart, a hand-rolled component library for
-everything else.** Building a full charting primitive from scratch (axes,
-tooltips, responsive containers) for one throughput chart wasn't a good use
-of scope relative to the rest of the system; the dashboard's non-chart UI
-(cards, buttons, status pills, tables) is deliberately minimal/hand-built
-since that's where the beige/cherry theme actually needs to feel bespoke.
+**One real bug this surfaced, worth recording:** two long-lived pre-computed
+values — the `hero-gradient` background image and, more subtly, a couple of
+`text-*` colors used specifically for the always-dark code/log panels
+(`bg-ink-900`) — needed to be either re-derived through CSS variables or
+deliberately pinned to a *non*-theme-reactive value. The `ink` neutral scale
+is intentionally the one scale that does **not** switch with the theme,
+because it backs UI (terminal-style log panels) that should look the same
+regardless of the surrounding app's light/dark state; using a theme-reactive
+color there by mistake (as an early pass did) produced dark-text-on-dark-bg
+once dark mode shipped, only caught by actually screenshotting the rendered
+page rather than reasoning about the CSS in the abstract.
+
+**Recharts for the metrics/throughput charts, a hand-rolled component library
+for everything else.** Building a full charting primitive from scratch
+(axes, tooltips, responsive containers) for two charts wasn't a good use of
+scope relative to the rest of the system; the dashboard's non-chart UI
+(cards, buttons, status pills, tables, the dependency-graph SVG, the
+pipeline topology view) is deliberately hand-built since that's where the
+theme actually needs to feel bespoke. Chart colors are passed as CSS
+`var(--color-*)` references (not hex) so they follow the active theme too.

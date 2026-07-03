@@ -46,8 +46,14 @@ npm run db:migrate
 npm run db:seed
 ```
 
-This seeds a demo user (`demo@codity.dev` / `password123`), an org, a
-project, a queue with 25 sample jobs, and a recurring cron template.
+This seeds a demo org ("Demo Org") with four users covering every RBAC role
+(`demo@codity.dev` OWNER / `admin@codity.dev` ADMIN / `member@codity.dev`
+MEMBER / `viewer@codity.dev` VIEWER, all `password123`), two projects, five
+queues (one paused), and ~45 jobs spanning every job type, status, retry
+strategy, a batch mid-flight, a recurring cron template with materialized
+history, and three workflow-dependency chains in different states (blocked,
+released, cascade-cancelled) — enough to see every feature without manually
+creating data first.
 
 ## Running the platform
 
@@ -98,14 +104,26 @@ docs/       Architecture, ER diagram, API reference, design decisions
 
 ## Demo script (what to click through)
 
-1. Log in with the seeded demo user, land on `/orgs`.
-2. Open the demo org → demo project → `emails` queue — see 25 seeded jobs,
-   concurrency config, pause/resume.
-3. Start a worker (`npm run dev --workspace=@codity/worker`) and watch jobs
+1. Log in with the seeded demo user, land on the project **Overview** page —
+   live stat tiles, a throughput chart, and a live-activity feed.
+2. Open **Queues** — `webhooks` is paused on purpose so its backlog stays
+   visible; try resuming it and watch the queued jobs drain live.
+3. **Job Explorer** → open any `DEAD_LETTER` job — the **AI Failure
+   Analysis** card is pre-generated on one seeded job (works without an API
+   key); try **Generate analysis** on another (needs `ANTHROPIC_API_KEY`, or
+   503s with a clear message if unset).
+4. Open a job created with `dependsOnJobIds` to see the **dependency graph**
+   (hand-rolled SVG DAG) — the seed data includes one still-blocked chain, one
+   already-released chain, and one that gets cascade-cancelled by the live
+   reconciler within ~30s of seeding.
+5. **Pipeline** page — a live animated queue → worker → outcome view driven
+   by the same WebSocket events as the rest of the dashboard.
+6. Toggle **light/dark mode** from the sidebar.
+7. Start a worker (`npm run dev --workspace=@codity/worker`) and watch jobs
    flow `QUEUED → CLAIMED → RUNNING → COMPLETED` live on the Job Explorer and
-   Queue Detail pages (WebSocket-driven, no manual refresh).
-4. Create a job with `payload.handler = "fail-always"` and a low
+   Queue Detail pages.
+8. Create a job with `payload.handler = "fail-always"` and a low
    `maxAttempts` to watch it retry with visible backoff, then land in the
    Dead Letter Queue — requeue it from there.
-5. Check the Workers page for fleet status/heartbeats, and Metrics for the
-   throughput chart.
+9. Check the **Workers** page for fleet status/heartbeats, and **Metrics**
+   for the throughput chart.

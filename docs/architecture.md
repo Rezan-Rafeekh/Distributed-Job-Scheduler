@@ -81,8 +81,31 @@ still being genuinely concurrent and fault-tolerant.
    LISTEN connection fans out to subscribed WebSocket clients so the dashboard
    updates within roughly a second, without polling.
 7. **Reconcile**: independently of any single job, the leader-elected
-   reconciler sweeps for orphaned claims (worker died mid-job) and dead
-   workers (missed heartbeats), requeuing/repairing state every ~30s.
+   reconciler sweeps for orphaned claims (worker died mid-job), dead workers
+   (missed heartbeats), and jobs permanently blocked on a dependency that
+   dead-lettered or was cancelled (bonus: workflow dependencies — see below),
+   requeuing/repairing/cancelling state every ~30s.
+
+## Bonus features and where they live
+
+- **Workflow dependencies**: a job created with `dependsOnJobIds` starts
+  `SCHEDULED` and is only promoted to `QUEUED` once every dependency reaches
+  `COMPLETED` — enforced by extending the existing promotion gate
+  (`promoteScheduledJobs.ts`), not the claim query. A dependency that
+  dead-letters or is cancelled instead cascades a `CANCELLED` onto its
+  blocked dependents via the reconciler. See design-decisions.md for the full
+  reasoning and its one documented scope boundary.
+- **AI-generated failure summaries**: `apps/api/src/services/dlqService.ts`
+  calls the Claude API (single request/response, no agent loop) with the
+  job's payload, error, stack trace, and recent logs, constrained to a JSON
+  schema (`summary`/`likelyCause`/`suggestedFix`/`severity`). Cached on
+  `DeadLetterEntry.aiSummary` so repeat views don't re-call the API.
+- **Live pipeline/topology view**: `apps/web/src/routes/Pipeline.tsx` is a
+  pure frontend visualization — queues → workers → completion/DLQ — driven
+  entirely by the same WebSocket events the rest of the dashboard already
+  consumes. No new backend surface.
+- **RBAC, rate limiting, WebSocket live updates**: see `docs/api.md`'s
+  conventions section and `apps/api/src/middleware/rbac.ts`.
 
 ## Deployment topology
 

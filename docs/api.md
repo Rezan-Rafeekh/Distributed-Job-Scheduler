@@ -84,9 +84,10 @@ exception — see design-decisions.md.
 | POST | `/queues/:queueId/jobs/batch` | MEMBER | Create N jobs sharing a `batchId` |
 | GET | `/queues/:queueId/jobs` | VIEWER | Cursor-paginated, filter by `status`/`type` |
 | GET | `/jobs?projectId=` | VIEWER | Global job explorer across all of a project's queues |
-| GET | `/jobs/:jobId` | VIEWER | Job detail |
+| GET | `/jobs/:jobId` | VIEWER | Job detail (includes `dlqEntry` with cached `aiSummary` if generated) |
 | GET | `/jobs/:jobId/executions` | VIEWER | Retry/attempt history |
 | GET | `/jobs/:jobId/executions/:executionId/logs` | VIEWER | Logs for one attempt |
+| GET | `/jobs/:jobId/dependencies` | VIEWER | `{ dependencies: Job[], dependents: Job[] }` (bonus: workflow dependencies) |
 | POST | `/jobs/:jobId/cancel` | MEMBER | Cancel a QUEUED/SCHEDULED/CLAIMED job |
 | POST | `/jobs/:jobId/retry` | MEMBER | Manually requeue a DEAD_LETTER job |
 
@@ -99,7 +100,10 @@ exception — see design-decisions.md.
 // SCHEDULED
 { "type": "SCHEDULED", "runAt": "2026-08-01T09:00:00Z", "payload": {} }
 ```
-Optional on all: `retryPolicy` (override), `maxAttempts`, `idempotencyKey`.
+Optional on all: `retryPolicy` (override), `maxAttempts`, `idempotencyKey`,
+`dependsOnJobIds` (bonus: workflow dependencies — up to 20 job UUIDs; when
+present the job is created `SCHEDULED` regardless of `type` and only
+promotes to `QUEUED` once every listed job reaches `COMPLETED`).
 
 ## Scheduled jobs (cron templates)
 
@@ -120,11 +124,12 @@ Optional on all: `retryPolicy` (override), `maxAttempts`, `idempotencyKey`.
 
 ## Dead Letter Queue
 
-| Method | Path | Min role |
-|---|---|---|
-| GET | `/dlq?projectId=&resolvedStatus=` | VIEWER |
-| POST | `/dlq/:jobId/requeue` | MEMBER |
-| POST | `/dlq/:jobId/discard` | MEMBER |
+| Method | Path | Min role | Description |
+|---|---|---|---|
+| GET | `/dlq?projectId=&resolvedStatus=` | VIEWER | |
+| POST | `/dlq/:jobId/requeue` | MEMBER | |
+| POST | `/dlq/:jobId/discard` | MEMBER | |
+| POST | `/dlq/:jobId/ai-summary` | MEMBER | `{ regenerate?: boolean }` — bonus: AI-generated failure summary via Claude. Cached on `DeadLetterEntry.aiSummary`; `regenerate: true` forces a fresh call. 503s with a clear message if `ANTHROPIC_API_KEY` is unset. |
 
 ## Metrics
 
