@@ -1,5 +1,7 @@
 FROM node:20-alpine AS base
 WORKDIR /repo
+# Prisma's query engine needs OpenSSL; plain node:20-alpine doesn't ship it.
+RUN apk add --no-cache openssl
 COPY package.json package-lock.json* ./
 COPY apps/worker/package.json apps/worker/package.json
 COPY packages/db/package.json packages/db/package.json

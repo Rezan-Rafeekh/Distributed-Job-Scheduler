@@ -66,7 +66,9 @@ export async function buildServer() {
 
 async function start() {
   const app = await buildServer();
-  const port = Number(process.env.API_PORT ?? 4000);
+  // Render (and most PaaS hosts) inject PORT and expect the app to bind it;
+  // API_PORT remains the local-dev override so docker-compose/`.env` are unaffected.
+  const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4000);
   await app.listen({ port, host: "0.0.0.0" });
   logger.info(`API listening on http://localhost:${port} (docs at /docs)`);
 }

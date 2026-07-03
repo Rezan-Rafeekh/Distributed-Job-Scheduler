@@ -102,6 +102,33 @@ packages/
 docs/       Architecture, ER diagram, API reference, design decisions
 ```
 
+## Deployment
+
+`render.yaml` at the repo root is a [Render](https://render.com) Blueprint
+defining all four pieces this platform needs to run continuously: the API
+(Docker web service), the worker (Docker background worker), the dashboard
+(static site), and a managed Postgres instance — wired together with the
+right environment variables (JWT secrets auto-generated, `DATABASE_URL`
+resolved from the Postgres instance, `VITE_API_URL` pointed at the API's
+public URL at build time).
+
+To deploy:
+1. Push this repo to GitHub (already done if you're reading it there).
+2. On [render.com](https://dashboard.render.com/blueprints), **New +** →
+   **Blueprint**, connect this repo, and Render reads `render.yaml`
+   automatically.
+3. After the services provision, add `ANTHROPIC_API_KEY` on the `codity-api`
+   service's environment tab if you want live AI failure summaries (optional
+   — the rest of the platform works without it).
+4. Once `codity-api` deploys, run `npm run db:seed` locally against its
+   `DATABASE_URL` (from the Render dashboard) if you want the same seeded
+   demo data as local dev.
+
+Free-tier notes: `codity-api` and `codity-worker` sleep after 15 minutes of
+inactivity and take ~30-60s to wake on the next request (fine for a
+demo/portfolio link, not for production traffic); free Postgres on Render
+expires after 90 days. `codity-web` is a static site and does not sleep.
+
 ## Demo script (what to click through)
 
 1. Log in with the seeded demo user, land on the project **Overview** page —
