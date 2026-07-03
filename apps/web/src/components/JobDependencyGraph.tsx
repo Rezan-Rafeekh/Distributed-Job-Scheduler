@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/apiClient.js";
 import { Card, CardBody, CardHeader } from "./ui/Card.js";
@@ -23,6 +23,7 @@ function nodeY(index: number, count: number): number {
 }
 
 export function JobDependencyGraph({ jobId, jobStatus }: { jobId: string; jobStatus: string }) {
+  const { projectId } = useParams();
   const { data } = useQuery({
     queryKey: ["job-dependencies", jobId],
     queryFn: () => api.get<DependencyGraph>(`/jobs/${jobId}/dependencies`),
@@ -39,30 +40,33 @@ export function JobDependencyGraph({ jobId, jobStatus }: { jobId: string; jobSta
       <CardHeader className="font-medium">Dependency graph</CardHeader>
       <CardBody>
         <div className="overflow-x-auto">
-          <svg width={560} height={height} className="min-w-[560px]">
-            {data.dependencies.map((dep, i) => (
-              <path
-                key={`dep-path-${dep.id}`}
-                d={`M ${NODE_X.deps + 90} ${nodeY(i, data.dependencies.length)} C ${NODE_X.center - 60} ${nodeY(i, data.dependencies.length)}, ${NODE_X.center - 60} ${centerY}, ${NODE_X.center - 8} ${centerY}`}
-                fill="none"
-                stroke="var(--color-beige-300)"
-                strokeWidth={2}
-                className="animate-fade-in-up"
-              />
-            ))}
-            {data.dependents.map((dep, i) => (
-              <path
-                key={`dependent-path-${dep.id}`}
-                d={`M ${NODE_X.center + 60} ${centerY} C ${NODE_X.dependents - 60} ${centerY}, ${NODE_X.dependents - 60} ${nodeY(i, data.dependents.length)}, ${NODE_X.dependents - 10} ${nodeY(i, data.dependents.length)}`}
-                fill="none"
-                stroke="var(--color-beige-300)"
-                strokeWidth={2}
-                className="animate-fade-in-up"
-              />
-            ))}
-          </svg>
-          {/* HTML nodes layered on top of the SVG paths for real text/links */}
-          <div className="relative w-[560px]" style={{ marginTop: -height }}>
+          {/* Explicit height on the positioning context: absolutely-positioned
+              children (the SVG overlay + HTML nodes below) don't contribute to
+              a parent's intrinsic height, so without this the card collapses
+              to zero height despite rendering real content. */}
+          <div className="relative w-[560px]" style={{ height }}>
+            <svg width={560} height={height} className="absolute left-0 top-0 min-w-[560px]">
+              {data.dependencies.map((dep, i) => (
+                <path
+                  key={`dep-path-${dep.id}`}
+                  d={`M ${NODE_X.deps + 90} ${nodeY(i, data.dependencies.length)} C ${NODE_X.center - 60} ${nodeY(i, data.dependencies.length)}, ${NODE_X.center - 60} ${centerY}, ${NODE_X.center - 8} ${centerY}`}
+                  fill="none"
+                  stroke="var(--color-beige-300)"
+                  strokeWidth={2}
+                  className="animate-fade-in-up"
+                />
+              ))}
+              {data.dependents.map((dep, i) => (
+                <path
+                  key={`dependent-path-${dep.id}`}
+                  d={`M ${NODE_X.center + 60} ${centerY} C ${NODE_X.dependents - 60} ${centerY}, ${NODE_X.dependents - 60} ${nodeY(i, data.dependents.length)}, ${NODE_X.dependents - 10} ${nodeY(i, data.dependents.length)}`}
+                  fill="none"
+                  stroke="var(--color-beige-300)"
+                  strokeWidth={2}
+                  className="animate-fade-in-up"
+                />
+              ))}
+            </svg>
 
             {data.dependencies.length > 0 && (
               <div
@@ -75,8 +79,7 @@ export function JobDependencyGraph({ jobId, jobStatus }: { jobId: string; jobSta
             {data.dependencies.map((dep, i) => (
               <Link
                 key={dep.id}
-                to={`../jobs/${dep.id}`}
-                relative="path"
+                to={`/projects/${projectId}/jobs/${dep.id}`}
                 className="absolute flex -translate-y-1/2 items-center gap-2 rounded-full border border-border bg-surface-raised px-3 py-1.5 text-xs shadow-soft transition-transform hover:-translate-y-[calc(50%+2px)]"
                 style={{ left: 0, top: nodeY(i, data.dependencies.length), width: 180 }}
               >
@@ -103,8 +106,7 @@ export function JobDependencyGraph({ jobId, jobStatus }: { jobId: string; jobSta
             {data.dependents.map((dep, i) => (
               <Link
                 key={dep.id}
-                to={`../jobs/${dep.id}`}
-                relative="path"
+                to={`/projects/${projectId}/jobs/${dep.id}`}
                 className="absolute -translate-y-1/2 items-center gap-2 rounded-full border border-border bg-surface-raised px-3 py-1.5 text-xs shadow-soft transition-transform hover:-translate-y-[calc(50%+2px)]"
                 style={{ left: NODE_X.dependents - 20, top: nodeY(i, data.dependents.length), width: 180 }}
               >

@@ -16,7 +16,7 @@
  * Scale names (beige/cherry/ink) are historical from an earlier warm
  * palette; beige is now a cool graphite neutral scale and cherry is the
  * danger/accent-adjacent red scale. `ink` is intentionally NOT theme-reactive
- * -- it backs the always-dark code/log panels (bg-ink-900 + text-beige-100),
+ * -- it backs the always-dark code/log panels (bg-ink-900 + text-ink-100),
  * which should look like a terminal regardless of the surrounding app theme.
  */
 

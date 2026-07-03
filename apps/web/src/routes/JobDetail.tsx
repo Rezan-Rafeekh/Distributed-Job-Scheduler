@@ -205,7 +205,7 @@ export function JobDetail() {
         <Card>
           <CardHeader className="font-medium">Payload</CardHeader>
           <CardBody>
-            <pre className="overflow-x-auto rounded-lg bg-ink-900 p-3 text-xs text-beige-100">
+            <pre className="overflow-x-auto rounded-lg bg-ink-900 p-3 text-xs text-ink-100">
               {JSON.stringify(job.payload, null, 2)}
             </pre>
           </CardBody>
@@ -214,7 +214,7 @@ export function JobDetail() {
         <Card>
           <CardHeader className="font-medium">Result</CardHeader>
           <CardBody>
-            <pre className="overflow-x-auto rounded-lg bg-ink-900 p-3 text-xs text-beige-100">
+            <pre className="overflow-x-auto rounded-lg bg-ink-900 p-3 text-xs text-ink-100">
               {job.result ? JSON.stringify(job.result, null, 2) : "—"}
             </pre>
           </CardBody>
@@ -237,9 +237,9 @@ export function JobDetail() {
               </button>
               {expandedExecution === exec.id && (
                 <div className="bg-ink-900 px-5 py-3">
-                  {exec.error && <p className="mb-2 font-mono text-xs text-cherry-300">{exec.error}</p>}
+                  {exec.error && <p className="mb-2 font-mono text-xs text-[#F87171]">{exec.error}</p>}
                   {logs?.map((log) => (
-                    <div key={log.id} className="font-mono text-xs text-beige-100">
+                    <div key={log.id} className="font-mono text-xs text-ink-100">
                       <span className="text-ink-400">{new Date(log.timestamp).toLocaleTimeString()}</span>{" "}
                       <span className="text-amber-300">[{log.level}]</span> {log.message}
                     </div>
