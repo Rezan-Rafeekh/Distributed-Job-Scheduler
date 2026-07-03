@@ -59,8 +59,13 @@ services:
     buildCommand: npm install && npm run build --workspace=@codity/shared && npm run build --workspace=@codity/web
     staticPublishPath: ./apps/web/dist
     envVars:
+      # NOTE: Render appends a random suffix to a service's *.onrender.com
+      # hostname when the plain name is already taken globally (shared
+      # namespace across all Render users, not just this account) -- confirm
+      # codity-api's actual assigned URL on its service page and update this
+      # if it differs before relying on it.
       - key: VITE_API_URL
-        value: https://codity-api.onrender.com
+        value: https://codity-api-kp1u.onrender.com
     routes:
       - type: rewrite
         source: /*
