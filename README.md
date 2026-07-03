@@ -1,6 +1,7 @@
 # Codity — Distributed Job Scheduler
 
-https://codity-web.onrender.com 
+https://codity-web.onrender.com .
+
 A production-inspired distributed job scheduling platform: authenticated
 multi-tenant projects/queues, immediate/delayed/scheduled/recurring/batch
 jobs, atomic job claiming across concurrent workers, configurable retry
